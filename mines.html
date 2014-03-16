@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Mines</title>
+    <meta charset="utf-8"/>
+    <link href='http://fonts.googleapis.com/css?family=Roboto:400,300,700&subset=latin,latin-ext' rel='stylesheet' type='text/css'>
+    <style type="text/css">
+    *{
+        font-family: 'Roboto', 'Segoe UI', sans-serif;
+        margin: 0;
+        padding: 0;
+        color: #555;
+    }
+    body{
+        width: 1000px;
+        margin: 0 auto;
+    }
+    h1{
+        margin: 5px 0 25px;
+        font-weight: 300;
+        text-align: center;
+        font-size: 40px;
+    }
+    .btn{
+        color: white;
+        display: inline-block;
+        padding: 5px 10px;
+        background-color: darkgray;
+        cursor: pointer;
+    }
+    .btn:hover{
+        background-color: gray;
+    }
+
+    #optionsWrap{
+        position: relative;
+        width: 400px;
+        margin: 0 auto 10px;
+    }
+    #optionsWrap span{
+        display: inline-block;
+        min-width: 100px;
+    }
+    #optionsWrap select{
+        min-width: 70px;
+    }
+    #btnStartGame{
+        position: absolute;
+        right: 160px;
+        top: 8px;
+    }
+
+    #mainTable{
+        font-size: 18px;
+        text-align: center;
+        font-weight: 700;
+        margin: 0 auto;
+        border-spacing: 1px;
+        background-color: transparent;
+    }
+    #mainTable td{
+        color: white;
+        background-color: #f80;
+        cursor: pointer;
+        transition: all 0.4s linear;
+        -webkit-transition: all 0.4s linear;
+        -moz-transition: all 0.4s linear;
+        -o-transition: all 0.4s linear;
+    }
+    #mainTable td:hover{
+        background-color: #fb3;
+    }
+    #mainTable td:active{
+        
+    }
+    #mainTable td.c{
+        background-color: silver;
+    }
+    #mainTable td.b{
+        /*background-color: red;*/
+    }
+    #mainTable td.f{
+        background-color: pink;
+    }
+
+    #gameStatsWrap{
+        margin-top: 10px;
+        display: none;
+        text-align: center;
+        color: #999;
+    }
+    #gameStatsWrap span{
+        display: inline-block;
+        margin-right: 10px;
+        color: #333;
+        font-weight: 700;
+    }
+
+    </style>
+    <script type="text/javascript" src="http://code.jquery.com/jquery-1.9.1.min.js"></script>
+    <script type="text/javascript">
+        var grid = 10,
+            bombs = 15,
+            f = '¤',
+            end = false;
+
+        function getRandomInt (min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        function MakeGrid(){
+            var t = '',
+                a = 400 / grid - 1,
+                style = 'style="width:'+ a +'px; height:' + a + 'px;"';
+            
+            for (var i = 0; i < grid; i++) {
+                t += '<tr>';
+                for (var j = 0; j < grid; j++) {
+                    t += '<td id="' + i + '-' + j + '" data-num="0" '+style+'></td>';
+                };
+                t += '</tr>';
+            };
+            $('#mainTableTBody').html(t);
+        }
+
+        function PlantBombs(){
+            var n = bombs;
+            while(n > 0){
+                var $td = $('#' + getRandomInt(0, grid-1) + '-' + getRandomInt(0, grid-1));
+                if(!$td.hasClass('b')){
+                    $td.addClass('b');
+                    n--;
+                }
+            }
+        }
+
+        function AddNumbers(){
+            $('.b').each(function(){
+                var $neighbours = FindCellNeighbours2($(this));
+                $neighbours.each(function () {
+                    var $td = $(this);
+                    if ($td.hasClass('b')) return;
+                    var t = parseInt($td.attr('data-num'));
+                    t++;
+                    $td.addClass('n').attr('data-num', t);
+                })
+            });
+        }
+
+        function HandleCellClik(e){
+            //check clicked cell
+            e.preventDefault();
+            if(end) return;
+
+            var $td = $(this);
+            if($td.hasClass('c')) return;
+
+            if(e.which == 1){
+                if($td.hasClass('f')){ // check flag cell
+                    return;
+                }else if($td.hasClass('b')){ // check bomb cell
+                    GameOver();
+                }else if($td.hasClass('n')){ // check number cell
+                    HandleNumberCellClick($td);
+                }else{ // empty cell                    
+                    HandleEmptyCellClick($td);
+                }
+                CheckGameProgress();
+            }
+            if(e.which == 3){
+                HandleAddFlagClick($td);
+                CheckGameProgress();
+            }            
+        }
+
+        function CheckGameProgress(){
+            var opened = $('.c').length,
+                all = grid * grid,
+                flags = $('.f').length;
+            $('#gsClicks').text(opened);
+            $('#gsFlags').text(flags);
+            if (all - opened == bombs) {
+                end = true;
+                alert('VICTORY!');
+            }
+        }
+
+        function GameOver(){
+            end = true;
+            $('.b').css('background-color', 'red');
+            alert('BOOOOOOOOM!\nGame over :(')
+        }
+
+        function HandleNumberCellClick($td){
+            $td.addClass('c').text($td.attr('data-num'));
+        }
+
+        function HandleEmptyCellClick($td){
+            $td.addClass('c e');
+            var repeat = true;
+            while(repeat){
+                repeat = RevealConnectedEmptyCells();
+            }
+        }
+
+        function RevealConnectedEmptyCells(){
+            var repeat = false;
+            $('.e').each(function(){
+                var $e = $(this);
+                $e.addClass('c').removeClass('e');
+                var $neighbours = FindCellNeighbours2($e);
+                $neighbours.each(function () {
+                    var $td = $(this);
+                    if (!$td.hasClass('b') && !$td.hasClass('c')) {
+                        $td.removeClass('f').empty();
+                        if ($td.hasClass('n'))
+                            HandleNumberCellClick($td);
+                        else{
+                            $td.addClass('e');
+                            repeat = true;
+                        }
+                    }
+                });                
+            });
+            return repeat;
+        }
+
+        function HandleAddFlagClick($td){
+            if($td.hasClass('f')){
+                $td.removeClass('f').text('');
+            }else{
+                $td.addClass('f').text(f);
+            }
+        }
+
+        function FindCellNeighbours1($td){
+            var idspl = $td.attr('id').split('-'),
+                row = parseInt(idspl[0]),
+                col = parseInt(idspl[1]),
+                up = '#' + (row-1) + '-' + col,
+                down = '#' + (row+1) + '-' + col,
+                left = '#' + row + '-' + (col-1),
+                right = '#' + row + '-' + (col+1);
+            return $(up + ',' + down + ',' +  left + ',' +  right);
+        }
+
+        function FindCellNeighbours2($td){
+            var idspl = $td.attr('id').split('-'),
+                row = parseInt(idspl[0]),
+                col = parseInt(idspl[1]),
+                up = '#' + (row-1) + '-' + col,
+                down = '#' + (row+1) + '-' + col,
+                left = '#' + row + '-' + (col-1),
+                right = '#' + row + '-' + (col+1),
+                upleft = '#' + (row-1) + '-' + (col-1),
+                upright = '#' + (row-1) + '-' + (col+1),
+                downleft = '#' + (row+1) + '-' + (col-1),
+                downright = '#' + (row+1) + '-' + (col+1);
+            return $(up + ',' + down + ',' +  left + ',' +  right + ',' + upleft + ',' + upright  + ',' + downleft + ',' + downright);
+        }
+
+        function StartGame(){
+            end = false;
+            grid = $('#grid').val();
+            bombs = parseFloat($('#bombs').val());
+            bombs = Math.floor(grid * grid * bombs);
+            MakeGrid();
+            PlantBombs();
+            AddNumbers();
+
+            $('#gsGrid').text(grid * grid);
+            $('#gsClicks').text(0);
+            $('#gsBombs').text(bombs);
+            $('#gsFlags').text(0);
+            $('#gameStatsWrap').show();
+        }
+
+
+        $(document).ready(function() {
+            $('#mainTableTBody').on('click contextmenu', 'td', HandleCellClik);
+            $('#btnStartGame').click(StartGame);
+        });
+        
+    </script>
+</head>
+
+<body>
+    <h1>Mines</h1>
+    <div id="optionsWrap">
+        <span>Size:</span>
+        <select id="grid">
+            <option value="5">5x5</option>
+            <option value="6">6x6</option>
+            <option value="7">7x7</option>
+            <option value="8">8x8</option>
+            <option value="9">9x9</option>
+            <option value="10" selected>10x10</option>
+            <option value="11">11x11</option>
+            <option value="12">12x12</option>
+            <option value="13">13x13</option>
+            <option value="14">14x14</option>
+            <option value="15">15x15</option>
+        </select>
+        <br>
+        <span>Mines:</span>
+        <select id="bombs">
+            <option value="0.1">10%</option>
+            <option value="0.15">15%</option>
+            <option value="0.2">20%</option>
+            <option value="0.25">25%</option>
+            <option value="0.3">30%</option>
+            <option value="0.35">35%</option>
+            <option value="0.4">40%</option>
+            <option value="0.45">45%</option>
+        </select>
+        <div class="btn" id="btnStartGame">Start!</div>
+    </div>
+    <section id="mainTableWrap">
+        <table id="mainTable">
+            <tbody id="mainTableTBody">
+            </tbody>
+        </table>
+        <div id="gameStatsWrap">
+            Fields: <span id="gsGrid"></span>
+            Open fields: <span id="gsClicks"></span>
+            Flags: <span id="gsFlags"></span>
+            Mines: <span id="gsBombs"></span>
+        </div>
+    </section>
+</body>
+
+</html>
